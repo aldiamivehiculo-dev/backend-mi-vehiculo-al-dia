@@ -4,8 +4,8 @@ from .models import Usuario
 class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
-        fields = ['id','username','email','rut','fecha_nacimiento','telefono','password']
-        extra_kwargs = {'password':{'write_only': True}}#hace que no se peda leer la contrasaeña cuando la api manda respuesta
+        fields = ['id','username','email','rut','fecha_nacimiento','residencia','telefono','password']
+        extra_kwargs = {'password':{'write_only': True}}#hace que no se pueda leer la contrasaeña cuando la api manda respuesta
 
     def create(self, validated_data):
         user = Usuario(
