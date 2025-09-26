@@ -49,6 +49,10 @@ REST_FRAMEWORK = {
     ),
 }
 
+# Configuración de email para pruebas locales
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_HOST_USER = 'noreply@mi-vehiculo.com'
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
