@@ -22,7 +22,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
      path('api/usuarios/', include('usuarios.urls')),
      #JWT
-     path('api/token', TokenObtainPairView.as_view(),name='token_obtain_pair'),# login
+     path('api/token/', TokenObtainPairView.as_view(),name='token_obtain_pair'),# login
      path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),# refrescar token
      
 ]
