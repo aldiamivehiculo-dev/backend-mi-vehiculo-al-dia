@@ -1,33 +1,38 @@
-from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
-from .models import Usuario
+# usuarios/admin.py
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
-# Register your models here
-#clase admin
+from .models import Usuario 
+from .forms import UsuarioCreationForm, UsuarioChangeForm 
+
 class UsuarioAdmin(BaseUserAdmin):
-    # Campos que se muestran en la lista del admin
+    # Asignación de formularios (Soluciona E016)
+    form = UsuarioChangeForm 
+    add_form = UsuarioCreationForm 
+
+    # Corrección de campos (Soluciona E003/E108)
     list_display = ('rut', 'nombre', 'email', 'rol', 'is_staff', 'is_superuser')
     list_filter = ('rol', 'is_staff', 'is_superuser', 'is_active')
-    ordering = ('rut',)  # campo por el que se ordena
-    search_fields = ('rut', 'nombre', 'email')
+    ordering = ('rut',) 
+    search_fields = ('rut', 'nombre', 'email') 
 
-    # Campos que se muestran en el formulario de edición
+    readonly_fields = ('last_login', 'created_at', 'update_at') 
+
     fieldsets = (
-        (None, {'fields': ('rut', 'password')}),
+        (None, {'fields': ('rut', 'password')}), 
         (_('Información personal'), {'fields': ('nombre', 'email', 'fecha_nacimiento', 'residencia', 'telefono')}),
         (_('Permisos'), {'fields': ('rol', 'is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         (_('Fechas importantes'), {'fields': ('last_login', 'created_at', 'update_at')}),
     )
 
-    # Campos que se muestran al crear un usuario desde el admin
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('rut', 'nombre', 'email', 'password1', 'password2', 'rol', 'is_staff', 'is_superuser'),
+            # Incluye 'password' del formulario personalizado
+            'fields': ('rut', 'nombre', 'email', 'rol', 'is_staff', 'is_superuser', 'password'), 
         }),
+        (_('Información personal adicional'), {'fields': ('fecha_nacimiento', 'residencia', 'telefono')}),
     )
 
 admin.site.register(Usuario, UsuarioAdmin)

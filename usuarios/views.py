@@ -1,17 +1,22 @@
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, serializers
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .serializer import UsuarioSerializer, UsuarioPerfilSerializer
+from .serializers import UsuarioSerializer, UsuarioPerfilSerializer
 from django.utils import timezone
 from datetime import timedelta
+from rest_framework.permissions import IsAuthenticated, BasePermission
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .serializers import CustomTokenObtainPairSerializer
+
 
 # Obtener el modelo de usuario actual
 Usuario = get_user_model()
 
-# CREAR USUARIO
+# CREAR USUARIO (Registro estándar)
 class RegistroUsuarioView(generics.CreateAPIView):
     """
     API para registrar un nuevo usuario.
@@ -36,7 +41,7 @@ class RecuperarContrasenaView(APIView):
         
         # Generar token de recuperación
         token = PasswordResetTokenGenerator().make_token(user)
-        reset_link = f"http://localhost:3000/reset-password/{user.pk}/{token}"  # frontend maneja el cambio
+        reset_link = f"http://localhost:3000/reset-password/{user.pk}/{token}"
         
         # Enviar correo de recuperación
         send_mail(
@@ -51,8 +56,8 @@ class RecuperarContrasenaView(APIView):
 # CAMBIAR CONTRASEÑA
 class CambiarContrasenaView(APIView):
     """
-    API para cambiar la contraseña usando un token válido
-    enviado por email. No requiere estar autenticado.
+    API para cambiar la contraseña usando un token válido.
+    No requiere estar autenticado.
     """
     permission_classes = [permissions.AllowAny]
 
@@ -80,7 +85,7 @@ class UsuarioPerfilView(generics.RetrieveUpdateAPIView):
     API para ver y actualizar el perfil del usuario autenticado.
     """
     serializer_class = UsuarioPerfilSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get_object(self):
         """
@@ -88,3 +93,60 @@ class UsuarioPerfilView(generics.RetrieveUpdateAPIView):
         a actualizar o visualizar.
         """
         return self.request.user
+    
+# ELIMINAR CUENTA
+class EliminarCuentaView(APIView):
+    """
+    API para que el usuario pueda eliminar su propia cuenta.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, *args, **kwargs):
+        """
+        Elimina la cuenta del usuario autenticado.
+        """
+        user = request.user
+        user.is_active = False
+        user.save()
+        return Response({"mensaje": "Cuenta eliminada correctamente"}, status=status.HTTP_200_OK)
+
+#USUARIOS INACTIVOS
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        if not self.user.is_active:
+            raise serializers.ValidationError("Esta cuenta ha sido desactivada.")
+        return data
+class CustomTokenObtainPairView(TokenObtainPairView):
+    """
+    API que no permite iniciar seccion a usuarios desactivados/eliminados
+    """
+    serializer_class = CustomTokenObtainPairSerializer
+    
+# PERMISO PERSONALIZADO: SOLO ADMIN
+class IsAdminUserApp(BasePermission):
+    """
+    Permiso para que solo usuarios con rol 'admin' puedan crear fiscalizadores o admin.
+    """
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.rol == 'admin'
+
+# CREAR USUARIO CON CONTROL DE ROLES
+class CrearUsuarioView(generics.CreateAPIView): 
+    """
+    Vista para registrar usuarios con control de roles.
+    Usuarios normales solo pueden crear cuentas 'usuario'.
+    Admin puede crear 'fiscalizador' o 'admin'.
+    """
+    serializer_class = UsuarioSerializer
+    queryset = Usuario.objects.all()
+
+    def get_permissions(self):
+        """
+        Si el request intenta crear un 'fiscalizador' o 'admin',
+        se requiere ser admin.
+        """
+        rol_solicitado = self.request.data.get('rol')
+        if self.request.method == 'POST' and rol_solicitado in ['fiscalizador', 'admin']:
+            return [IsAuthenticated(), IsAdminUserApp()]
+        return [permissions.AllowAny()]

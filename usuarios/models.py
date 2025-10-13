@@ -58,7 +58,6 @@ class UsuarioManager(BaseUserManager):
 class Usuario(AbstractBaseUser, PermissionsMixin):
     """
     Modelo de usuario personalizado que reemplaza al modelo por defecto de Django.
-    Incluye campos como RUT, nombre, email, rol, teléfono, residencia y fechas de creación/actualización.
     """
 
     ROLES = (
@@ -67,24 +66,28 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         ('admin', 'Administrador App')
     )
 
-    rut = models.CharField(max_length=12, unique=True)  # Identificador chileno único
-    nombre = models.CharField(max_length=150)  # Nombre completo del usuario
-    email = models.EmailField(unique=True)  # Correo electrónico único
-    rol = models.CharField(max_length=20, choices=ROLES, default='usuario')  # Rol del usuario
-    fecha_nacimiento = models.DateField(null=True, blank=True)  # Fecha de nacimiento
-    residencia = models.CharField(max_length=255, blank=True)  # Domicilio del usuario
-    telefono = models.CharField(max_length=11, blank=True)  # Número de teléfono
-    is_active = models.BooleanField(default=True)  # Indica si el usuario está activo
-    is_staff = models.BooleanField(default=False)  # Determina si puede entrar al admin
-    created_at = models.DateTimeField(auto_now_add=True)  # Fecha de creación
-    update_at = models.DateTimeField(auto_now=True)  # Fecha de última actualización
+    rut = models.CharField(max_length=12, unique=True)
+    nombre = models.CharField(max_length=150)
+    email = models.EmailField(unique=True)
+    rol = models.CharField(max_length=20, choices=ROLES, default='usuario')
+    fecha_nacimiento = models.DateField(null=True, blank=True)
+    residencia = models.CharField(max_length=255, blank=True)
+    telefono = models.CharField(max_length=11, blank=True)
+    
+    #  CAMPO AGREGADO: Necesario para la restricción de 30 días en el Serializer
+    fecha_nacimiento_ultima_actualizacion = models.DateTimeField(null=True, blank=True) 
+    
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    update_at = models.DateTimeField(auto_now=True)
 
     # Asociamos el manager personalizado
     objects = UsuarioManager()
 
     # Campos de login
-    USERNAME_FIELD = 'rut'  # Campo principal para autenticación
-    REQUIRED_FIELDS = ['email', 'nombre']  # Campos requeridos al crear superusuario
+    USERNAME_FIELD = 'rut'
+    REQUIRED_FIELDS = ['email', 'nombre']
 
     def __str__(self):
         """
