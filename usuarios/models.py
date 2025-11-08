@@ -53,7 +53,6 @@ class UsuarioManager(BaseUserManager):
             raise ValueError('El superusuario debe tener is_superuser=True.')
 
         return self.create_user(rut, email, nombre, password, **extra_fields)
-
 #Modelo personalizado de Usuario
 class Usuario(AbstractBaseUser, PermissionsMixin):
     """
@@ -68,6 +67,7 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     rut = models.CharField(max_length=12, unique=True)
     nombre = models.CharField(max_length=150)
+    apellidos = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
     rol = models.CharField(max_length=20, choices=ROLES, default='usuario')
     fecha_nacimiento = models.DateField(null=True, blank=True)

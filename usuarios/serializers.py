@@ -8,48 +8,45 @@ import re
 class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
-        fields = ['id', 'nombre', 'email', 'rut', 'fecha_nacimiento', 'residencia', 'telefono', 'password', 'rol']
+        fields = ['id', 'nombre', 'apellidos', 'email', 'rut', 'fecha_nacimiento', 'residencia', 'telefono', 'password', 'rol']
         extra_kwargs = {'password': {'write_only': True}}
 
     # --- 1. NORMALIZACIÓN (to_internal_value) ---
-    # Limpia el formato de entrada (quita puntos, guiones) y lo convierte al estándar XXXXXXX-Y
     def to_internal_value(self, data):
         internal_value = super().to_internal_value(data)
 
         if 'rut' in internal_value and internal_value['rut']:
-            rut = str(internal_value['rut']).upper()
-            
-            # 1. Eliminar todos los caracteres que no sean dígitos o 'K'
+            rut = str(internal_value['rut'])
+
+            # Eliminar caracteres que no sean dígitos o 'K'
             rut_limpio = re.sub(r'[^0-9K]', '', rut)
 
-            # 2. Re-formatear al estándar "cuerpo-dv" para la validación
+            # Re-formatear: cuerpo-dv
             if len(rut_limpio) >= 2:
-                cuerpo = rut_limpio[:-1] # Toda la parte numérica
-                dv = rut_limpio[-1]      # El último caracter es el dígito verificador
+                cuerpo = rut_limpio[:-1]
+                dv = rut_limpio[-1]
                 internal_value['rut'] = f"{cuerpo}-{dv}"
             else:
-                # Si es muy corto, se deja limpio para que la validación lo rechace
                 internal_value['rut'] = rut_limpio
 
         return internal_value
 
-    # --- 2. VALIDACIÓN (validate_rut) ---
+    # --- 2. VALIDACIÓN DEL RUT (solo formato + unicidad) ---
     def validate_rut(self, value):
         if not value:
             raise serializers.ValidationError("El campo RUT no puede estar vacío.")
 
-        # VALIDACIÓN A: Formato y Largo (6 a 8 dígitos en el cuerpo)
-        # Esto SÍ se mantiene para asegurar la estructura XXXXXXX-Y.
+        # Estructura XXXXXXX-Y   (6–8 dígitos)
         if not re.match(r'^\d{6,8}-[\dK]$', value):
-            raise serializers.ValidationError("Formato de RUT inválido. Ejemplo válido: 12345678-9 (o 9876543-K)")
-        # VALIDACIÓN C: Unicidad (Comprobar si ya existe)
-        # Esto es lo que usará el sistema para distinguir a los usuarios:
-        # "21546556-9" es diferente de "21546556-8".
+            raise serializers.ValidationError("Formato de RUT inválido. Ejemplo: 12345678-9 o 9876543-K")
+
+        # Unicidad
         if Usuario.objects.filter(rut=value).exists():
             raise serializers.ValidationError("Ya existe un usuario con este RUT registrado.")
 
         return value
-    # --- Validación del Rol ---
+
+    # --- 3. Validación del Rol ---
     def validate_rol(self, value):
         request = self.context.get('request')
 
@@ -62,7 +59,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
 
         return value
 
-    # --- Creación del usuario ---
+    # --- 4. CREACIÓN DEL USUARIO ---
     def create(self, validated_data):
         user = Usuario(
             nombre=validated_data['nombre'],
@@ -73,10 +70,10 @@ class UsuarioSerializer(serializers.ModelSerializer):
             telefono=validated_data.get('telefono'),
             rol=validated_data.get('rol', 'usuario')  # Por defecto: usuario
         )
-        user.set_password(validated_data['password'])  # Encripta la contraseña
+        user.set_password(validated_data['password'])
         user.save()
         return user
-    
+
 class UsuarioPerfilSerializer(serializers.ModelSerializer):
 
     class Meta:

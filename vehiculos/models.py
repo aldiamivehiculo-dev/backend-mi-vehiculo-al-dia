@@ -4,12 +4,27 @@ from django.conf import settings
 # Create your models here.
 
 #Base de datos interna de vehiculos (autocompletados)
+
+TIPO_CHOICES = [
+    ("auto", "Automóvil"),
+    ("camioneta", "Camioneta"),
+    ("moto", "Motocicleta"),
+    ("camion", "Camión"),
+    ("bus", "Bus"),
+]
+
 class VehiculoData(models.Model):
     patente = models.CharField(max_length=10, unique=True)
     marca = models.CharField(max_length=50)
     modelo = models.CharField(max_length=50)
     año = models.PositiveIntegerField()
     color = models.CharField(max_length=30, blank=True, null=True)
+
+    tipo = models.CharField(
+        max_length= 10,
+        choices=TIPO_CHOICES,
+        default="auto"
+    )
     
     def __str__(self):
         return f"{self.patente} - {self.marca} {self.modelo}"
@@ -23,3 +38,12 @@ class Vehiculo(models.Model):
     año = models.PositiveIntegerField()
     color = models.CharField(max_length=30, blank=True, null=True)
     alias = models.CharField(max_length=30, blank=True, null=True)
+
+    tipo = models.CharField(
+        max_length= 10,
+        choices=TIPO_CHOICES,
+        default="auto"
+    )
+    
+    def __str__(self):
+        return f"{self.patente} - {self.marca} {self.modelo}"

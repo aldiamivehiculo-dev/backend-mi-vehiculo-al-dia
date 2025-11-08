@@ -10,6 +10,7 @@ class VehiculoSerializer(serializers.ModelSerializer):
             'modelo': {'required': False},
             'año': {'required': False},
             'color': {'required': False},
+            'tipo': {'required': False}
         }
 
     def create(self, validated_data):
@@ -28,6 +29,7 @@ class VehiculoSerializer(serializers.ModelSerializer):
             validated_data['modelo'] = vd.modelo
             validated_data['año'] = vd.año
             validated_data['color'] = vd.color
+            validated_data['tipo'] =vd.tipo
 
         except VehiculoData.DoesNotExist:
             # Si la patente no existe, se crea en VehiculoData
@@ -36,13 +38,15 @@ class VehiculoSerializer(serializers.ModelSerializer):
                 marca=validated_data.get('marca', ''),
                 modelo=validated_data.get('modelo', ''),
                 año=validated_data.get('año', 0),
-                color=validated_data.get('color', '')
+                color=validated_data.get('color', ''),
+                tipo=validated_data('tipo', 'auto')
             )
             # Autocompletamos los campos desde el nuevo registro
             validated_data['marca'] = vd.marca
             validated_data['modelo'] = vd.modelo
             validated_data['año'] = vd.año
             validated_data['color'] = vd.color
+            validated_data['tipo'] = vd.tipo
 
         # Asociamos el vehículo al usuario que hace la solicitud
         validated_data['user'] = self.context['request'].user
@@ -56,4 +60,4 @@ class VehiculoListSerializer(serializers.ModelSerializer):
 class VehiculoUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehiculo
-        fields = ['alias', 'color'] #campo editable
+        fields = ['alias', 'color', 'tipo'] #campo editable

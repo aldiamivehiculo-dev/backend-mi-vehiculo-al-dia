@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-
+from datetime import timedelta
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'usuarios',
     'vehiculos',
+    'documentos_vehiculo',
     'rest_framework'
 ]
 
@@ -51,9 +52,12 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=3000000),# tiempo de expiracion
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),# Bloque de tiempo de expiracion
+    'ROTATE_REFRESH_TOKENS': False,# Bloque de tiempo de expiracion
+    'BLACKLIST_AFTER_ROTATION': False,# Bloque de tiempo de expiracion
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
-    'TOKEN_OBTAIN_SERIALIZER': 'usuarios.serializers.CustomTokenObtainPairSerializer',  # Tu serializer personalizado
 }
 
 
