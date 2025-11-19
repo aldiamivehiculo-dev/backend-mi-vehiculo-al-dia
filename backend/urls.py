@@ -24,6 +24,12 @@ urlpatterns = [
     path('api/usuarios/', include('usuarios.urls')), 
     path('api/vehiculos/', include('vehiculos.urls')),
     path('api/documentos/', include('documentos_vehiculo.urls')),
+    path("api/accesos/", include("accesos.urls")),
+    path("api/fiscalizador/", include("fiscalizador.urls")),
+    path("api/mantenimiento/", include("mantenimiento.urls")),
+    path("api/notificaciones/", include("notificaciones.urls")),
+
+
     
      #JWT
     path('api/token/', CustomTokenObtainPairView.as_view(),name='token_obtain_pair'),# login

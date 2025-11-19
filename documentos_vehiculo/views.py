@@ -9,6 +9,9 @@ import os, mimetypes
 from django.shortcuts import get_object_or_404
 from vehiculos.models import Vehiculo
 from rest_framework.response import Response
+from notificaciones.utils import crear_notificacion
+from notificaciones.models import Notificacion
+
 
 # Create your views here.
 
@@ -18,7 +21,7 @@ class DocumentoCreateView(generics.CreateAPIView):
 
     def get_queryset(self):
         return DocumentoVehicular.objects.filter(user=self.request.user)
-
+    
 class DocumentoListView(generics.ListAPIView):
     serializer_class = DocumentoVehicularSerializer
     permission_classes = [permissions.IsAuthenticated]

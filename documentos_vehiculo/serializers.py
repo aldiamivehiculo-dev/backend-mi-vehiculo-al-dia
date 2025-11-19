@@ -141,10 +141,14 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     "archivo": f"Documento insuficiente. Puntaje obtenido: {score} / 100",
                     "detalles": detalles
-                })
-            
+                })  
         #soap
         if tipo =='so':
+            nombre = archivo.name.lower()
+            if not (nombre.endswith('.pdf') or nombre.endswith('.jpg') or nombre.endswith('.jpeg') or nombre.endswith('.png')):
+                raise serializers.ValidationError({
+                    "archivo": "Solo se permiten archivos PDF o imágenes (JPG, JPEG, PNG) para SOAP."
+                })
             user = self.context["request"].user
 
             #patente obligatoria
@@ -217,6 +221,30 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
                     "archivo":f"Documento SOAP insuficiente. Puntaje {score}%",
                     "detalles": detalles,
                 })
+            
+        if tipo =="rt":
+            nombre = archivo.name.lower()
+
+            if not (nombre.endswith('.pdf') or nombre.endswith('.jpg') or nombre.endswith('.jpeg') or nombre.endswith('.png')):
+                raise serializers.ValidationError({
+                    "archivo": "Solo se permiten archivos PDF o imágenes (JPG, JPEG, PNG) para SOAP."
+                })
+            
+            if not attrs.get("fecha_vencimiento"):
+                raise serializers.ValidationError({
+                    "fecha_vencimiento": "Debe ingresar la fecha de vencimiento."
+                })
+            
+            if attrs ["fecha_vencimiento"] < date.today():
+                raise serializers.ValidationError({
+                    "fecha_vencimiento": "La Revisión Técnica ya está vencida."
+                })
+            
+            score = 0
+            detalles ={
+                "validacion_basica": True,
+                "ocr_validaciones": "no aplicadas todavias"
+            }
             
         # Guardamos datos
         attrs["puntaje_validacion"] = score

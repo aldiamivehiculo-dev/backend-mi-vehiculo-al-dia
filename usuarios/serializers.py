@@ -11,7 +11,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
         fields = ['id', 'nombre', 'apellidos', 'email', 'rut', 'fecha_nacimiento', 'residencia', 'telefono', 'password', 'rol']
         extra_kwargs = {'password': {'write_only': True}}
 
-    # --- 1. NORMALIZACIÓN (to_internal_value) ---
+    #NORMALIZACIÓN
     def to_internal_value(self, data):
         internal_value = super().to_internal_value(data)
 
@@ -31,7 +31,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
 
         return internal_value
 
-    # --- 2. VALIDACIÓN DEL RUT (solo formato + unicidad) ---
+    #VALIDACIÓN DEL RUT (solo formato + unicidad)
     def validate_rut(self, value):
         if not value:
             raise serializers.ValidationError("El campo RUT no puede estar vacío.")
@@ -46,7 +46,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
 
         return value
 
-    # --- 3. Validación del Rol ---
+    #Validación del Rol
     def validate_rol(self, value):
         request = self.context.get('request')
 
@@ -59,7 +59,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
 
         return value
 
-    # --- 4. CREACIÓN DEL USUARIO ---
+    #CREACIÓN DEL USUARIO
     def create(self, validated_data):
         user = Usuario(
             nombre=validated_data['nombre'],
