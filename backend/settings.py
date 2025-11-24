@@ -9,18 +9,15 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ==========================================================
+
 # CONFIG GENERAL
-# ==========================================================
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
 DEBUG = os.environ.get("DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = ["*"]
 
 
-# ==========================================================
 # FIREBASE STORAGE
-# ==========================================================
 FIREBASE_CREDENTIALS = os.path.join(BASE_DIR, "backend", "serviceAccountKey.json")
 
 if not firebase_admin._apps:
@@ -29,10 +26,7 @@ if not firebase_admin._apps:
         "storageBucket": "mi-vehiculo-al-dia.firebasestorage.app"
     })
 
-
-# ==========================================================
 # APPS
-# ==========================================================
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -55,10 +49,7 @@ INSTALLED_APPS = [
 
 AUTH_USER_MODEL = "usuarios.Usuario"
 
-
-# ==========================================================
 # JWT
-# ==========================================================
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -70,10 +61,7 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
 
-
-# ==========================================================
 # MIDDLEWARE
-# ==========================================================
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -88,10 +76,7 @@ MIDDLEWARE = [
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-
-# ==========================================================
 # TEMPLATES / WSGI
-# ==========================================================
 ROOT_URLCONF = "backend.urls"
 
 TEMPLATES = [
@@ -112,14 +97,13 @@ TEMPLATES = [
 WSGI_APPLICATION = "backend.wsgi.application"
 
 
-# ==========================================================
+
 # BASE DE DATOS (LOCAL + PRODUCCIÓN)
-# ==========================================================
-# → LOCAL: SQLite
-# → PRODUCCIÓN: Railway usa DATABASE_URL automáticamente
+# →LOCAL: SQLite
+# PRODUCCIÓN: Railway usa DATABASE_URL automáticamente
 
 if DEBUG:
-    # 🔵 MODO DESARROLLO → SQLite
+    #MODO DESARROLLO → SQLite
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -127,7 +111,7 @@ if DEBUG:
         }
     }
 else:
-    # 🟣 MODO PRODUCCIÓN → PostgreSQL (Railway)
+    #MODO PRODUCCIÓN → PostgreSQL (Railway)
     DATABASES = {
         "default": dj_database_url.config(
             default=os.environ.get("DATABASE_URL"),
@@ -136,15 +120,10 @@ else:
         )
     }
 
-
-# ==========================================================
 # STATIC FILES
-# ==========================================================
 STATIC_URL = "static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
 
-# ==========================================================
 # DEFAULTS
-# ==========================================================
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
