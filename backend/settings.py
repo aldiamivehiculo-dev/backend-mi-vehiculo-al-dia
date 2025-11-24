@@ -3,7 +3,7 @@ from datetime import timedelta
 import os
 import firebase_admin
 from firebase_admin import credentials
-
+import json
 import dj_database_url
 
 
@@ -18,13 +18,21 @@ ALLOWED_HOSTS = ["*"]
 
 
 # FIREBASE STORAGE
-FIREBASE_CREDENTIALS = os.path.join(BASE_DIR, "backend", "serviceAccountKey.json")
+# FIREBASE STORAGE (PRODUCCIÓN + DESARROLLO)
+FIREBASE_CREDENTIALS_JSON = os.environ.get("FIREBASE_CREDENTIALS_JSON")
 
-if not firebase_admin._apps:
-    cred = credentials.Certificate(FIREBASE_CREDENTIALS)
-    firebase_admin.initialize_app(cred, {
-        "storageBucket": "mi-vehiculo-al-dia.firebasestorage.app"
-    })
+if FIREBASE_CREDENTIALS_JSON:
+    # CREDENCIALES DESDE VARIABLE DE ENTORNO (RAILWAY)
+    cred_dict = json.loads(FIREBASE_CREDENTIALS_JSON)
+
+    if not firebase_admin._apps:
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred, {
+            "storageBucket": "mi-vehiculo-al-dia.firebasestorage.app"
+        })
+else:
+    print("No se cargaron credenciales Firebase (FIREBASE_CREDENTIALS_JSON no existe)")
+
 
 # APPS
 INSTALLED_APPS = [
