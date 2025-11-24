@@ -76,8 +76,16 @@ class VehiculoFiscalizadorSerializer(serializers.ModelSerializer):
                     advertencias.append(f"Validación fallida en {tipo.upper()}: {key}")
         return advertencias
             
-
 class FiscalizacionSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = Fiscalizacion
-        fields = ["id", "vehiculo", "observacion"]
+        fields = ["id", "vehiculo", "token", "advertencias", "fecha"]
+
+        read_only_fields = ["id", "fecha"]
+
+    def create(self, validated_data):
+        # El fiscalizador viene desde la vista
+        fiscalizador = self.context["request"].user
+        validated_data["fiscalizador"] = fiscalizador
+        return super().create(validated_data)

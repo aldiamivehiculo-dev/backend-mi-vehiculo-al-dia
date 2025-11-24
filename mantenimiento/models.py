@@ -24,5 +24,6 @@ class MantenimientoVehiculo(models.Model):
     fecha_registro = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.vehiculo.patente}" - {self.descripcion[:20]}
+        return f"{self.vehiculo.patente} - {self.descripcion[:20]}"
+
 

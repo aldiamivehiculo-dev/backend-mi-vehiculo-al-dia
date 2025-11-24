@@ -18,17 +18,13 @@ class SharedAccess(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name="shared_links") #usuario que genero el qr
     vehiculo = models.ForeignKey(Vehiculo,on_delete=models.CASCADE,related_name="shared_links")#vehiulo asoiado a token
     token = models.CharField(max_length=64,unique=True,db_index=True)#token unico
-
-    #¿Es un acceso originado por préstamo?
-    # False → Fiscalización normal
-    # True → Usuario prestado temporal
     is_prestamo = models.BooleanField(default=False)
     receptor_nombre=models.CharField(max_length=255, blank=True, null=True)
     receptor_rut = models.CharField(max_length=20, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)#control de expiracion
+    expires_at = models.DateTimeField(db_index=True)#control de expiracion
+    qr_base64 = models.TextField(null=True, blank=True)
 
-    #control de expiracion
-    created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField(db_index=True)
 
     #contrl de revocacion manual
     is_revoked = models.BooleanField(

@@ -1,17 +1,16 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
 from accesos.models import SharedAccess
 from vehiculos.models import Vehiculo
-from .serializers import VehiculoFiscalizadorSerializer, FiscalizacionSerializer
-from .models import Fiscalizacion
-from fiscalizador.permissions import IsFiscalizador
 from documentos_vehiculo.models import DocumentoVehicular
+from .models import Fiscalizacion
+from .serializers import VehiculoFiscalizadorSerializer
+from fiscalizador.permissions import IsFiscalizador
 from django.http import FileResponse
+from notificaciones.utils import crear_notificacion
 
-# Create your views here.
-
+#ESCANEAR QR (MOSTRAR DATOS)
 class FiscalizadorScanQR(APIView):
     permission_classes = [IsAuthenticated, IsFiscalizador]
 
@@ -23,8 +22,8 @@ class FiscalizadorScanQR(APIView):
 
         vehiculo = shared.vehiculo
         data = VehiculoFiscalizadorSerializer(vehiculo).data
-        
-        # marcar acceso como fiscalizador en logs
+
+        # Registrar acceso del fiscalizador
         shared.access_logs.create(
             usuario=request.user,
             is_prestamo=shared.is_prestamo,
@@ -32,49 +31,98 @@ class FiscalizadorScanQR(APIView):
             user_agent=request.META.get("HTTP_USER_AGENT")
         )
 
+        # Notificación al dueño del vehículo
+        crear_notificacion(
+            user=vehiculo.user,
+            titulo="Vehículo fiscalizado",
+            mensaje=f"Tu vehículo con patente {vehiculo.patente} ha sido fiscalizado por un inspector autorizado.",
+            tipo="fiscalizacion",
+            meta={
+                "vehiculo_id": vehiculo.id,
+                "patente": vehiculo.patente,
+                "fecha": str(shared.expires_at)
+            },
+            send_email=False
+        )
+
         return Response(data)
 
-class FiscalizadorHistorial(APIView):
+#HISTORIAL
+class HistorialFiscalizadorListView(APIView):
     permission_classes = [IsAuthenticated, IsFiscalizador]
 
-    def get(self, request, vehiculo_id):
-        vehiculo = Vehiculo.objects.filter(id=vehiculo_id).first()
-        if not vehiculo:
-            return Response({"detail": "Vehículo no encontrado"}, status=404)
+    def get(self, request):
+        fiscalizador = request.user
 
-        data = VehiculoFiscalizadorSerializer(vehiculo).data
+        fiscalizaciones = Fiscalizacion.objects.filter(
+            fiscalizador=fiscalizador
+        ).order_by("-fecha")
+
+        data = [{
+            "id": f.id,
+            "fecha": f.fecha,
+            "vehiculo": {
+                "patente": f.vehiculo.patente,
+                "marca": f.vehiculo.marca,
+            },
+            "observacion": f.observacion,
+        } for f in fiscalizaciones]
+
         return Response(data)
 
+#REGISTRAR FISCALIZACIÓN
 class RegistrarFiscalizacion(APIView):
     permission_classes = [IsAuthenticated, IsFiscalizador]
 
     def post(self, request):
-        ser = FiscalizacionSerializer(data=request.data)
+        user = request.user
+        token = request.data.get("token")
+        vehiculo_id = request.data.get("vehiculo")
+        advertencias = request.data.get("advertencias", [])
 
-        if not ser.is_valid():
-            return Response(ser.errors, status=400)
+        #Validar rol
+        if user.rol != "fiscalizador":
+            return Response({"detail": "No autorizado."}, status=403)
 
-        vehiculo = ser.validated_data["vehiculo"]
+        #Buscar vehículo
+        try:
+            vehiculo = Vehiculo.objects.get(id=vehiculo_id)
+        except Vehiculo.DoesNotExist:
+            return Response({"detail": "Vehículo no encontrado"}, status=404)
 
-        # Validar que el fiscalizador NO fiscalice otro vehículo diferente al del QR
-        token = request.query_params.get("token")
-        if token:
-            shared = SharedAccess.objects.filter(token=token).first()
-            if shared and shared.vehiculo != vehiculo:
-                return Response(
-                    {"detail": "El vehículo no corresponde al token escaneado."},
-                    status=400
-                )
+        #Crear registro de fiscalización
+        registro = Fiscalizacion.objects.create(
+            fiscalizador=user,
+            vehiculo=vehiculo,
+            token=token,
+            advertencias=advertencias
+        )
 
-        ser.save(fiscalizador=request.user)
-        return Response(ser.data, status=201)
+        #Notificación al usuario dueño
+        crear_notificacion(
+            user=vehiculo.user,
+            titulo="Vehículo fiscalizado",
+            mensaje=f"Tu vehículo con patente {vehiculo.patente} ha sido fiscalizado.",
+            tipo="fiscalizacion",
+            meta={
+                "vehiculo_id": vehiculo.id,
+                "patente": vehiculo.patente
+            }
+        )
 
+        return Response({
+            "mensaje": "Fiscalización registrada correctamente",
+            "id": registro.id
+        }, status=201)
+    
+#HISTORIAL SOLO FISCALIZACIONES
 class HistorialFiscalizacionesView(APIView):
-
     permission_classes = [IsAuthenticated, IsFiscalizador]
 
     def get(self, request, vehiculo_id):
-        Fiscalizaciones = Fiscalizacion.objects.filter(vehiculo_id=vehiculo_id).order_by("-fecha")
+        fiscalizaciones = Fiscalizacion.objects.filter(
+            vehiculo_id=vehiculo_id
+        ).order_by("-fecha")
 
         data = [{
             "id": f.id,
@@ -84,35 +132,11 @@ class HistorialFiscalizacionesView(APIView):
                 "rut": f.fiscalizador.rut if f.fiscalizador else None,
                 "nombre": f.fiscalizador.nombre if f.fiscalizador else None
             }
-        }
-        for f in    Fiscalizaciones
-        ]
-        return Response(data)
-    
-class FiscalizadorQRLogs(APIView):
-    permission_classes = [IsAuthenticated, IsFiscalizador]
-
-    def get(self, request, token):
-        shared = SharedAccess.objects.filter(token=token).first()
-
-        if not shared:
-            return Response({"detail": "Token no encontrado"}, status=404)
-
-        logs = shared.access_logs.all().order_by("-accessed_at")
-
-        data = [
-            {
-                "fecha": log.accessed_at,
-                "ip": log.ip,
-                "user_agent": log.user_agent,
-                "tipo_acceso": "préstamo" if log.is_prestamo else "fiscalización",
-                "usuario_rut": log.usuario.rut if log.usuario else None,
-            }
-            for log in logs
-        ]
+        } for f in fiscalizaciones]
 
         return Response(data)
 
+#ER PDF DEL DOCUMENTO
 class FiscalizadorVerPDF(APIView):
     permission_classes = [IsAuthenticated, IsFiscalizador]
 

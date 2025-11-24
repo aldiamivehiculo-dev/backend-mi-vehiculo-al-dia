@@ -14,6 +14,7 @@ from vehiculos.models import Vehiculo
 from documentos_vehiculo.models import DocumentoVehicular
 from django.contrib.auth import get_user_model
 from django.http import FileResponse, Http404
+from notificaciones.utils import crear_notificacion
 
 # Create your views here.
 
@@ -27,9 +28,8 @@ class GenerateShareQR(APIView):
         is_prestamo = str(request.data.get("is_prestamo", False)).lower() == "true"
         receptor_nombre = request.data.get("receptor_nombre")
         receptor_rut = request.data.get("receptor_rut")
-
+       
         #validar horas
-
         try:
             hours = int(hours)
         except:
@@ -77,18 +77,50 @@ class GenerateShareQR(APIView):
 
         #construir url publica
         share_url = request.build_absolute_uri(f"/api/accesos/info/{shared.token}/")
+        frontend_url = f"http://192.168.1.48:8100/qr-publico/{shared.token}"
 
         #generr qr 
         qr = qrcode.make(share_url)
         buf = BytesIO()
         qr.save(buf, format="PNG")
         qr_base64 = base64.b64encode(buf.getvalue()).decode()
+        
+        shared.qr_base64 = qr_base64#
+        shared.save()#guardar
+
+        #notificaiones
+        titulo = "QR generado"
+        mensaje = (
+            f"Se ha generado un código QR para el vehículo {vehiculo.patente}. "
+            f"Duración: {hours} hora(s)."
+        )
+
+        meta = {
+            "qr_id":str(shared.id),
+            "vehiculo_id": vehiculo.id,
+            "vehiculo_patente": vehiculo.patente,
+            "expires_at": str(shared.expires_at),
+            "token": str(shared.token),
+            "is_prestamo": is_prestamo,
+            "receptor_nombre": receptor_nombre,
+            "receptor_rut": receptor_rut,
+        }
+
+        crear_notificacion(
+            user=request.user,
+            titulo=titulo,
+            mensaje=mensaje,
+            tipo="qr",
+            meta=meta,
+            send_email=False
+        )
 
         return Response({
             "id": str(shared.id),
             "token": shared.token,
             "expires_at": shared.expires_at,
             "share_url": share_url,
+            "frontend_url": frontend_url,
             "qr_base64": qr_base64,
             "is_prestamo": shared.is_prestamo,
             "receptor_nombre": shared.receptor_nombre,
@@ -260,5 +292,16 @@ class DownloadSharedDocumentView(APIView):
 
         return FileResponse(doc.archivo.open('rb'), content_type='application/pdf')
 
-        
+class SharedAccessDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, uuid):
+        shared = get_object_or_404(SharedAccess, id=uuid)
+
+        if shared.user != request.user:
+            return Response({"detail": "No autorizado"}, status=403)
+
+        ser = SharedAccessSerializer(shared)
+        return Response(ser.data, status=200)
+
 

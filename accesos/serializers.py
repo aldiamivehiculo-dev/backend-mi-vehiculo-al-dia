@@ -5,6 +5,8 @@ class SharedAccessSerializer(serializers.ModelSerializer):
     is_valid = serializers.SerializerMethodField()
 
     vehiculo_patente = serializers.CharField(source="vehiculo.patente", read_only=True)
+    qr_base64 = serializers.CharField(read_only=True)
+
 
     class Meta:
         model = SharedAccess
@@ -18,7 +20,9 @@ class SharedAccessSerializer(serializers.ModelSerializer):
             "is_valid",
             "is_prestamo",
             "receptor_nombre",
-            "receptor_rut"
+            "receptor_rut",
+            "qr_base64",
+
         ]
 
     def get_is_valid(self, obj):

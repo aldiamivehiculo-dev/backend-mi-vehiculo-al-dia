@@ -111,12 +111,6 @@ class EliminarCuentaView(APIView):
         return Response({"mensaje": "Cuenta eliminada correctamente"}, status=status.HTTP_200_OK)
 
 #USUARIOS INACTIVOS
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    def validate(self, attrs):
-        data = super().validate(attrs)
-        if not self.user.is_active:
-            raise serializers.ValidationError("Esta cuenta ha sido desactivada.")
-        return data
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
     API que no permite iniciar seccion a usuarios desactivados/eliminados

@@ -8,7 +8,6 @@ class MantenimientoSerializer(serializers.ModelSerializer):
         model = MantenimientoVehiculo
         fields =[
             "id",
-            "user",
             "vehiculo",
             "vehiculo_patente",
             "descripcion",

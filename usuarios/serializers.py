@@ -97,9 +97,42 @@ class UsuarioPerfilSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token['rol'] = user.rol
+        token['rut'] = user.rut
+        token['nombre'] = user.nombre
+        return token
+
     def validate(self, attrs):
-        data = super().validate(attrs)
-        user = self.user
+        email = attrs.get("email")
+        password = attrs.get("password")
+
+        # Buscar usuario por email
+        user = Usuario.objects.filter(email=email).first()
+
+        if not user:
+            raise serializers.ValidationError({"detail": "Credenciales inválidas."})
+
+        if not user.check_password(password):
+            raise serializers.ValidationError({"detail": "Credenciales inválidas."})
+
         if not user.is_active:
-            raise serializers.ValidationError("Esta cuenta ha sido desactivada.")
-        return data
+            raise serializers.ValidationError({"detail": "Esta cuenta ha sido desactivada."})
+
+        # Crear token manualmente
+        refresh = self.get_token(user)
+
+        return {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "rut": user.rut,
+                "nombre": user.nombre,
+                "rol": user.rol
+            }
+        }

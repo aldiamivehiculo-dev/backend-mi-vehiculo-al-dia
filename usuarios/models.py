@@ -7,7 +7,7 @@ class UsuarioManager(BaseUserManager):
     Manager para crear usuarios y superusuarios con los campos personalizados.
     """
 
-    def create_user(self, rut, email, nombre, password=None, rol='usuario', **extra_fields):
+    def create_user(self, email, rut, nombre, password=None, rol='usuario', **extra_fields):
         """
         Crea y guarda un usuario normal en la base de datos.
         Parámetros:
@@ -86,8 +86,8 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     objects = UsuarioManager()
 
     # Campos de login
-    USERNAME_FIELD = 'rut'
-    REQUIRED_FIELDS = ['email', 'nombre']
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['rut', 'nombre']
 
     def __str__(self):
         """

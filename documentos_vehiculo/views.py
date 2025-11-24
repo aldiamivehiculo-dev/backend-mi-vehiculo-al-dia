@@ -10,18 +10,94 @@ from django.shortcuts import get_object_or_404
 from vehiculos.models import Vehiculo
 from rest_framework.response import Response
 from notificaciones.utils import crear_notificacion
-from notificaciones.models import Notificacion
+from rest_framework.permissions import AllowAny
+
+# Firebase
+import firebase_admin
+from firebase_admin import storage
+from django.core.files.uploadedfile import InMemoryUploadedFile
+import uuid
 
 
-# Create your views here.
+# ============================================================
+# FUNCIÓN PARA SUBIR ARCHIVOS A FIREBASE STORAGE
+# ============================================================
+def subir_pdf_firebase(file):
+    # MUY IMPORTANTE: reiniciar el puntero del archivo
+    file.seek(0)
 
+    ext = file.name.split('.')[-1]
+    filename = f"documentos/{uuid.uuid4()}.{ext}"
+
+    bucket = storage.bucket()
+    blob = bucket.blob(filename)
+
+    blob.upload_from_file(file, content_type=file.content_type)
+    blob.make_public()
+
+    return blob.public_url
+
+
+
+
+# ============================================================
+# CREAR DOCUMENTO
+# ============================================================
 class DocumentoCreateView(generics.CreateAPIView):
     serializer_class = DocumentoVehicularSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return DocumentoVehicular.objects.filter(user=self.request.user)
-    
+
+    def perform_create(self, serializer):
+
+        # 1) Guardamos documento + usuario (validado con OCR en serializer)
+        doc = serializer.save(user=self.request.user)
+
+        # 2) archivo recibido en la request
+        archivo_subido = self.request.FILES.get("archivo")
+
+        if archivo_subido:
+            # 3) subir a firebase
+            url = subir_pdf_firebase(archivo_subido)
+
+            # 4) limpiar FileField y guardar URL
+            doc.archivo = None
+            doc.archivo_url = url
+            doc.save()
+
+        # ---------------------------------------------------
+        # NOTIFICACIÓN
+        # ---------------------------------------------------
+        tipo_display = doc.get_tipo_display()
+        titulo = f"Documento {tipo_display} subido"
+        mensaje = (
+            f"Se ha subido un documento de tipo {tipo_display} "
+            f"para el vehículo {doc.vehiculo.patente}."
+        )
+
+        meta = {
+            "documento_id": doc.id,
+            "vehiculo_id": doc.vehiculo_id,
+            "vehiculo_patente": doc.vehiculo.patente,
+            "tipo": doc.tipo,
+        }
+
+        crear_notificacion(
+            user=self.request.user,
+            titulo=titulo,
+            mensaje=mensaje,
+            tipo="documento",
+            meta=meta,
+            send_email=False,
+        )
+
+
+
+# ============================================================
+# LISTAR DOCUMENTOS
+# ============================================================
 class DocumentoListView(generics.ListAPIView):
     serializer_class = DocumentoVehicularSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -55,6 +131,11 @@ class DocumentoListView(generics.ListAPIView):
 
         return qs
 
+
+
+# ============================================================
+# DETALLE DOCUMENTO
+# ============================================================
 class DocumentoDetailView(generics.RetrieveAPIView):
     serializer_class = DocumentoVehicularSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -66,24 +147,46 @@ class DocumentoDetailView(generics.RetrieveAPIView):
             .select_related('vehiculo')
         )
 
+
+
+# ============================================================
+# ELIMINAR DOCUMENTO
+# ============================================================
 class DocumentoDeleteView(generics.DestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return DocumentoVehicular.objects.filter(user=self.request.user)
 
+
+
+# ============================================================
+# DESCARGAR DOCUMENTO (LEGACY, YA NO SE USA CON FIREBASE)
+# ============================================================
 class DocumentoDownloadView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request, pk):
+        token = request.query_params.get("token")
+
+        if token:
+            from rest_framework_simplejwt.tokens import AccessToken
+            try:
+                AccessToken(token)
+            except Exception:
+                return Response({"detail": "Token inválido"}, status=401)
+        else:
+            if not request.user.is_authenticated:
+                return Response({"detail": "Authentication credentials were not provided."}, status=401)
+
         try:
-            doc = DocumentoVehicular.objects.get(pk=pk, user=request.user)
+            doc = DocumentoVehicular.objects.get(pk=pk)
         except DocumentoVehicular.DoesNotExist:
             raise Http404("Documento no encontrado")
 
         if not doc.archivo:
             raise Http404("El documento no tiene archivo asociado")
-        
+
         filename = os.path.basename(doc.archivo.name)
         content_type, _ = mimetypes.guess_type(filename)
 
@@ -92,9 +195,13 @@ class DocumentoDownloadView(APIView):
             as_attachment=True,
             filename=filename,
             content_type=content_type or 'application/octet-stream'
-
         )
 
+
+
+# ============================================================
+# DOCUMENTOS ACTIVOS POR VEHÍCULO
+# ============================================================
 class DocumentoActivosPorVehiculoView(generics.ListAPIView):
 
     serializer_class = DocumentoVehicularSerializer
@@ -114,6 +221,11 @@ class DocumentoActivosPorVehiculoView(generics.ListAPIView):
         
         return qs
 
+
+
+# ============================================================
+# HISTORIAL POR TIPO
+# ============================================================
 class DocumentoHistorialPorTipoView(generics.ListAPIView):
     serializer_class = DocumentoVehicularSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -133,10 +245,15 @@ class DocumentoHistorialPorTipoView(generics.ListAPIView):
         )
 
         if vehiculo_id:
-            qs=qs.filter(vehiculo_id=vehiculo_id)
+            qs = qs.filter(vehiculo_id=vehiculo_id)
             
         return qs
 
+
+
+# ============================================================
+# ESTADO DE DOCUMENTOS DEL VEHÍCULO
+# ============================================================
 class DocumentoEstadoVehiculoView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -153,7 +270,6 @@ class DocumentoEstadoVehiculoView(APIView):
 
         faltantes = []
         vencidos = []
-
         data_docs = {}
 
         for tipo in tipos_requeridos:
@@ -164,14 +280,12 @@ class DocumentoEstadoVehiculoView(APIView):
                 data_docs[tipo] = None
                 continue
 
-            #guardar info
-            data_docs[tipo] ={
+            data_docs[tipo] = {
                 "id": doc.id,
                 "fecha_vencimiento": doc.fecha_vencimiento,
                 "activo": doc.activo
             }
 
-            #vencidos
             if doc.fecha_vencimiento and doc.fecha_vencimiento < hoy:
                 vencidos.append(tipo)
 
@@ -185,4 +299,3 @@ class DocumentoEstadoVehiculoView(APIView):
             "vencidos": vencidos,
             "documentos": data_docs
         }, status=status.HTTP_200_OK)
-
