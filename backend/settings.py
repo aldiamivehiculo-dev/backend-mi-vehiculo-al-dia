@@ -5,6 +5,9 @@ import firebase_admin
 from firebase_admin import credentials
 import json
 import dj_database_url
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -121,12 +124,13 @@ if DEBUG:
 else:
     #MODO PRODUCCIÓN → PostgreSQL (Railway)
     DATABASES = {
-        "default": dj_database_url.config(
-            default=os.environ.get("DATABASE_URL"),
+        "default": dj_database_url.parse(
+            os.getenv("DATABASE_URL"),
             conn_max_age=600,
-            conn_health_checks=True,
+            ssl_require=False
         )
     }
+
 
 # STATIC FILES
 STATIC_URL = "static/"
