@@ -4,7 +4,7 @@ from PyPDF2 import PdfReader
 import re
 from .models import DocumentoVehicular
 import requests
-impo
+import os
 
 # =======================================================
 # REGEX
@@ -28,10 +28,10 @@ def ocr_externo(file):
         files={"file": file},
         data={
             "apikey": api_key,
-            "language": "spa",      # Mejor detección español
-            "isTable": True,        # Para SOAP/PC/RT con cuadros
-            "scale": True,          # Aumenta calidad
-            "OCREngine": 2          # Motor OCR avanzado
+            "language": "spa",
+            "isTable": True,
+            "scale": True,
+            "OCREngine": 2
         },
     )
 
@@ -39,7 +39,6 @@ def ocr_externo(file):
         return result.json()["ParsedResults"][0]["ParsedText"]
     except:
         return ""
-
 
 
 # =======================================================
@@ -68,14 +67,32 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
         # 1) Extraer texto normalmente
         texto = self._leer_texto_pdf(archivo)
 
+        # LOG del PDF extraído
+        print("\n================= TEXTO PyPDF2 =================")
+        print(texto)
+        print("================================================\n")
+
         # 2) Si no hay, ejecutar OCR externo
         if not texto.strip():
             archivo.seek(0)
             texto = ocr_externo(archivo)
 
+            # LOG del OCR externo
+            print("\n================= TEXTO OCR EXTERNO =================")
+            print(texto)
+            print("=====================================================\n")
+
         texto_upper = texto.upper()
 
+        # Extraer datos
         patentes_pdf, fecha_pdf, _, anios_pdf = self._procesar_pdf(texto)
+
+        # LOG de hallazgos
+        print("\n**************** HALLAZGOS OCR ****************")
+        print("Patentes detectadas:", patentes_pdf)
+        print("Fecha detectada:", fecha_pdf)
+        print("Años detectados:", anios_pdf)
+        print("************************************************\n")
 
         # SELECTOR DEL TIPO
         if tipo == "pc":
@@ -129,10 +146,8 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
 
     # =======================================================
     # VALIDACIÓN PC
-    # (SE MANTIENE IGUAL QUE TU VERSIÓN)
     # =======================================================
     def _validar_pc(self, attrs, vehiculo, texto, patentes_pdf, fecha_pdf, anios_pdf):
-
         score = 0
         detalles = {}
         minimo = 85
@@ -156,7 +171,7 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
         detalles["palabra_clave"] = clave_ok
         score += 15 if clave_ok else 0
 
-        # firma o timbre
+        # firma
         firma_ok = (
             "FIRMA ELECTR" in texto or
             "TIMBRE" in texto or
@@ -170,7 +185,7 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
         detalles["anio"] = anio_ok
         score += 15 if anio_ok else 0
 
-        # vencimiento auto
+        # vencimiento
         if not attrs.get("fecha_vencimiento") and fecha_pdf:
             attrs["fecha_vencimiento"] = fecha_pdf
 
@@ -196,7 +211,6 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
     # VALIDACIÓN SOAP
     # =======================================================
     def _validar_soap(self, attrs, vehiculo, texto, patentes_pdf, anios_pdf):
-
         score = 0
         detalles = {}
         minimo = 85
@@ -226,7 +240,7 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
         detalles["palabras_clave"] = claves_ok
         score += 20 if claves_ok else 0
 
-        # nombre y rut
+        # nombre
         user = self.context["request"].user
         nombre_full = f"{user.nombre} {user.apellidos}".strip().upper()
         texto_norm = texto.replace(" ", "")
@@ -236,6 +250,7 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
         detalles["nombre_apellido"] = nombre_ok
         score += 5 if nombre_ok else 0
 
+        # rut
         rut_user = re.sub(r"[^0-9K]", "", user.rut.upper())
         rut_pdf = re.sub(r"[^0-9K]", "", texto)
         rut_ok = rut_user in rut_pdf
