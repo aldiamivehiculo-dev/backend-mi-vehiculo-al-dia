@@ -292,7 +292,7 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
         patentes_pdf_norm = [_norm_patente(p) for p in patentes_pdf]
 
         import logging
-        logger = logging.getLogger(_name_)
+        logger = logging.getLogger(__name__)
         logger.warning("===== DEBUG RT =====")
         logger.warning(f"Patente BD: {patente_bd}")
         logger.warning(f"Patentes OCR: {patentes_pdf_norm}")
