@@ -5,7 +5,7 @@ import re
 from .models import DocumentoVehicular
 import requests
 import os
-
+import logging
 # =======================================================
 # REGEX
 # =======================================================
@@ -290,6 +290,15 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
 
         patente_bd = _norm_patente(vehiculo.patente)[:6]
         patentes_pdf_norm = [_norm_patente(p) for p in patentes_pdf]
+
+        import logging
+        logger = logging.getLogger(_name_)
+        logger.warning("===== DEBUG RT =====")
+        logger.warning(f"Patente BD: {patente_bd}")
+        logger.warning(f"Patentes OCR: {patentes_pdf_norm}")
+        logger.warning(f"Texto usado (primeros 500 chars): {texto[:500]}")
+        logger.warning("====================")
+        
         pat_pdf_join = "".join(patentes_pdf_norm)
 
         patente_ok = patente_bd in pat_pdf_join
