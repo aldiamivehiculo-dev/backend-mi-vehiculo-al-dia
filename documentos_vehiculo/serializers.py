@@ -4,8 +4,7 @@ from PyPDF2 import PdfReader
 import re
 from .models import DocumentoVehicular
 import requests
-import os
-import logging
+
 # =======================================================
 # REGEX
 # =======================================================
@@ -17,24 +16,16 @@ def _norm_patente(p):
     return re.sub(r"[^A-Z0-9]", "", p.upper())
 
 
+# =======================================================
 # OCR EXTERNO (OCR.SPACE)
+# =======================================================
 def ocr_externo(file):
     url = "https://api.ocr.space/parse/image"
-
-    api_key = os.environ.get("OCR_API_KEY", "helloworld")
-
     result = requests.post(
         url,
         files={"file": file},
-        data={
-            "apikey": api_key,
-            "language": "spa",
-            "isTable": True,
-            "scale": True,
-            "OCREngine": 2
-        },
+        data={"apikey": "helloworld"},  # FREE TIER
     )
-
     try:
         return result.json()["ParsedResults"][0]["ParsedText"]
     except:
@@ -67,32 +58,14 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
         # 1) Extraer texto normalmente
         texto = self._leer_texto_pdf(archivo)
 
-        # LOG del PDF extraído
-        print("\n================= TEXTO PyPDF2 =================")
-        print(texto)
-        print("================================================\n")
-
         # 2) Si no hay, ejecutar OCR externo
         if not texto.strip():
             archivo.seek(0)
             texto = ocr_externo(archivo)
 
-            # LOG del OCR externo
-            print("\n================= TEXTO OCR EXTERNO =================")
-            print(texto)
-            print("=====================================================\n")
-
         texto_upper = texto.upper()
 
-        # Extraer datos
         patentes_pdf, fecha_pdf, _, anios_pdf = self._procesar_pdf(texto)
-
-        # LOG de hallazgos
-        print("\n**************** HALLAZGOS OCR ****************")
-        print("Patentes detectadas:", patentes_pdf)
-        print("Fecha detectada:", fecha_pdf)
-        print("Años detectados:", anios_pdf)
-        print("************************************************\n")
 
         # SELECTOR DEL TIPO
         if tipo == "pc":
@@ -146,8 +119,10 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
 
     # =======================================================
     # VALIDACIÓN PC
+    # (SE MANTIENE IGUAL QUE TU VERSIÓN)
     # =======================================================
     def _validar_pc(self, attrs, vehiculo, texto, patentes_pdf, fecha_pdf, anios_pdf):
+
         score = 0
         detalles = {}
         minimo = 85
@@ -171,7 +146,7 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
         detalles["palabra_clave"] = clave_ok
         score += 15 if clave_ok else 0
 
-        # firma
+        # firma o timbre
         firma_ok = (
             "FIRMA ELECTR" in texto or
             "TIMBRE" in texto or
@@ -185,7 +160,7 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
         detalles["anio"] = anio_ok
         score += 15 if anio_ok else 0
 
-        # vencimiento
+        # vencimiento auto
         if not attrs.get("fecha_vencimiento") and fecha_pdf:
             attrs["fecha_vencimiento"] = fecha_pdf
 
@@ -211,6 +186,7 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
     # VALIDACIÓN SOAP
     # =======================================================
     def _validar_soap(self, attrs, vehiculo, texto, patentes_pdf, anios_pdf):
+
         score = 0
         detalles = {}
         minimo = 85
@@ -240,7 +216,7 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
         detalles["palabras_clave"] = claves_ok
         score += 20 if claves_ok else 0
 
-        # nombre
+        # nombre y rut
         user = self.context["request"].user
         nombre_full = f"{user.nombre} {user.apellidos}".strip().upper()
         texto_norm = texto.replace(" ", "")
@@ -250,7 +226,6 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
         detalles["nombre_apellido"] = nombre_ok
         score += 5 if nombre_ok else 0
 
-        # rut
         rut_user = re.sub(r"[^0-9K]", "", user.rut.upper())
         rut_pdf = re.sub(r"[^0-9K]", "", texto)
         rut_ok = rut_user in rut_pdf
@@ -290,15 +265,6 @@ class DocumentoVehicularSerializer(serializers.ModelSerializer):
 
         patente_bd = _norm_patente(vehiculo.patente)[:6]
         patentes_pdf_norm = [_norm_patente(p) for p in patentes_pdf]
-
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.warning("===== DEBUG RT =====")
-        logger.warning(f"Patente BD: {patente_bd}")
-        logger.warning(f"Patentes OCR: {patentes_pdf_norm}")
-        logger.warning(f"Texto usado (primeros 500 chars): {texto[:500]}")
-        logger.warning("====================")
-        
         pat_pdf_join = "".join(patentes_pdf_norm)
 
         patente_ok = patente_bd in pat_pdf_join
