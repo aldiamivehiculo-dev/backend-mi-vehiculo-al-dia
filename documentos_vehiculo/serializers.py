@@ -4,6 +4,7 @@ from PyPDF2 import PdfReader
 import re
 from .models import DocumentoVehicular
 import requests
+impo
 
 # =======================================================
 # REGEX
@@ -16,20 +17,29 @@ def _norm_patente(p):
     return re.sub(r"[^A-Z0-9]", "", p.upper())
 
 
-# =======================================================
 # OCR EXTERNO (OCR.SPACE)
-# =======================================================
 def ocr_externo(file):
     url = "https://api.ocr.space/parse/image"
+
+    api_key = os.environ.get("OCR_API_KEY", "helloworld")
+
     result = requests.post(
         url,
         files={"file": file},
-        data={"apikey": "helloworld"},  # FREE TIER
+        data={
+            "apikey": api_key,
+            "language": "spa",      # Mejor detección español
+            "isTable": True,        # Para SOAP/PC/RT con cuadros
+            "scale": True,          # Aumenta calidad
+            "OCREngine": 2          # Motor OCR avanzado
+        },
     )
+
     try:
         return result.json()["ParsedResults"][0]["ParsedText"]
     except:
         return ""
+
 
 
 # =======================================================
