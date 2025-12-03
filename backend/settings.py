@@ -17,8 +17,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
 DEBUG = os.environ.get("DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [
+    "web-production-057b0.up.railway.app",
+    "localhost",
+    "127.0.0.1",
+]
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://web-production-057b0.up.railway.app",
+]
 
 # FIREBASE STORAGE
 # FIREBASE STORAGE (PRODUCCIÓN + DESARROLLO)
