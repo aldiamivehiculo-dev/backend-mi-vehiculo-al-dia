@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -28,44 +29,51 @@ class GenerateShareQR(APIView):
         is_prestamo = str(request.data.get("is_prestamo", False)).lower() == "true"
         receptor_nombre = request.data.get("receptor_nombre")
         receptor_rut = request.data.get("receptor_rut")
-       
-        #validar horas
+
+        # validar horas
         try:
             hours = int(hours)
         except:
             return Response({"error": "hours debe ser numérico"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        #OBTENER VEHICULO
+
+        # obtener vehículo
         vehiculo = get_object_or_404(Vehiculo, id=vehiculo_id)
 
-        # veridicar que el usuario sea dueño
+        # verificar propietario
         if vehiculo.user != request.user:
-            return Response({"error": "No tienes permiso para generar QR de este vehículo"},status=status.HTTP_403_FORBIDDEN)
-        
-        #SI ES PRETAMO receptor obligado
+            return Response(
+                {"error": "No tienes permiso para generar QR de este vehículo"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # validación préstamo
         if is_prestamo:
             if not receptor_nombre or not receptor_rut:
-                return Response({"error": "Para préstamos, receptor_nombre y receptor_rut son obligatorios"}, status=status.HTTP_400_BAD_REQUEST)
-            
-            #validar que el RUT pertenezca a un usuario existente
+                return Response(
+                    {"error": "Para préstamos, receptor_nombre y receptor_rut son obligatorios"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             User = get_user_model()
-            
+
             try:
                 U_dest = User.objects.get(rut=receptor_rut)
-            
             except User.DoesNotExist:
-                return Response({"error": "El RUT del receptor no corresponde a un usuario registrado."}, status=status.HTTP_400_BAD_REQUEST)
-            
-            # si no envían nombre, lo tomamos del usuario
+                return Response(
+                    {"error": "El RUT del receptor no corresponde a un usuario registrado."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             if not receptor_nombre:
                 receptor_nombre = getattr(U_dest, "nombre", None)
         else:
             receptor_nombre = None
             receptor_rut = None
-        #Ccalcular eexpiracion
+
+        # calcular expiración
         expires_at = timezone.now() + timedelta(hours=hours)
 
-        #crear registro
+        # crear registro
         shared = SharedAccess.objects.create(
             user=request.user,
             vehiculo=vehiculo,
@@ -75,20 +83,24 @@ class GenerateShareQR(APIView):
             receptor_rut=receptor_rut
         )
 
-        #construir url publica
-        share_url = request.build_absolute_uri(f"/api/accesos/info/{shared.token}/")
-        frontend_url = f"http://192.168.1.48:8100/qr-publico/{shared.token}"
+        token = shared.token
 
-        #generr qr 
-        qr = qrcode.make(share_url)
+        # URL backend (API)
+        share_url = request.build_absolute_uri(f"/api/accesos/info/{token}/")
+
+        # URL frontend (Firebase Hosting)
+        frontend_url = f"{settings.FRONTEND_BASE_URL}/qr-publico/{token}"
+
+        # 🔥 generar QR apuntando al FRONTEND (NO al backend)
+        qr = qrcode.make(frontend_url)
         buf = BytesIO()
         qr.save(buf, format="PNG")
         qr_base64 = base64.b64encode(buf.getvalue()).decode()
-        
-        shared.qr_base64 = qr_base64#
-        shared.save()#guardar
 
-        #notificaiones
+        shared.qr_base64 = qr_base64
+        shared.save()
+
+        # notificación
         titulo = "QR generado"
         mensaje = (
             f"Se ha generado un código QR para el vehículo {vehiculo.patente}. "
@@ -96,11 +108,11 @@ class GenerateShareQR(APIView):
         )
 
         meta = {
-            "qr_id":str(shared.id),
+            "qr_id": str(shared.id),
             "vehiculo_id": vehiculo.id,
             "vehiculo_patente": vehiculo.patente,
             "expires_at": str(shared.expires_at),
-            "token": str(shared.token),
+            "token": str(token),
             "is_prestamo": is_prestamo,
             "receptor_nombre": receptor_nombre,
             "receptor_rut": receptor_rut,
@@ -117,15 +129,15 @@ class GenerateShareQR(APIView):
 
         return Response({
             "id": str(shared.id),
-            "token": shared.token,
+            "token": token,
             "expires_at": shared.expires_at,
-            "share_url": share_url,
-            "frontend_url": frontend_url,
+            "share_url": share_url,       # API
+            "frontend_url": frontend_url, # EL LINK CORRECTO PARA COMPARTIR
             "qr_base64": qr_base64,
             "is_prestamo": shared.is_prestamo,
             "receptor_nombre": shared.receptor_nombre,
             "receptor_rut": shared.receptor_rut
-            }, status=status.HTTP_201_CREATED)
+        }, status=status.HTTP_201_CREATED)
     
 class SharedAccessInfoView(APIView):
     #endpoint publico que retorna la info ligada a un token de acceso
