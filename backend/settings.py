@@ -9,23 +9,36 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
+# ======================================================
 # CONFIG GENERAL
+# ======================================================
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
 DEBUG = os.environ.get("DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = ["*"]
+# 🔥 IMPORTANTE: Dominios permitidos para el backend
+ALLOWED_HOSTS = [
+    "web-production-057b0.up.railway.app",   # Backend Railway
+    "localhost",
+    "127.0.0.1",
+    "mi-vehiculo-al-dia.web.app",            # Frontend Firebase Hosting
+    "mi-vehiculo-al-dia.firebaseapp.com",
+]
 
+# 🔥 CSRF permitido (obligatorio para POST desde frontend)
+CSRF_TRUSTED_ORIGINS = [
+    "https://web-production-057b0.up.railway.app",
+    "https://mi-vehiculo-al-dia.web.app",
+    "https://mi-vehiculo-al-dia.firebaseapp.com",
+]
 
+# ======================================================
 # FIREBASE STORAGE
-# FIREBASE STORAGE (PRODUCCIÓN + DESARROLLO)
+# ======================================================
 FIREBASE_CREDENTIALS_JSON = os.environ.get("FIREBASE_CREDENTIALS_JSON")
 
 if FIREBASE_CREDENTIALS_JSON:
-    # CREDENCIALES DESDE VARIABLE DE ENTORNO (RAILWAY)
     cred_dict = json.loads(FIREBASE_CREDENTIALS_JSON)
 
     if not firebase_admin._apps:
@@ -36,8 +49,9 @@ if FIREBASE_CREDENTIALS_JSON:
 else:
     print("No se cargaron credenciales Firebase (FIREBASE_CREDENTIALS_JSON no existe)")
 
-
+# ======================================================
 # APPS
+# ======================================================
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -60,7 +74,9 @@ INSTALLED_APPS = [
 
 AUTH_USER_MODEL = "usuarios.Usuario"
 
+# ======================================================
 # JWT
+# ======================================================
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -72,10 +88,12 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
 
+# ======================================================
 # MIDDLEWARE
+# ======================================================
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
+    "corsheaders.middleware.CorsMiddleware",  # ← Importante colocar arriba
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -84,10 +102,24 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+# ======================================================
+# CORS (PERMITIR PETICIONES)
+# ======================================================
 
+# Permite TODOS los orígenes — útil en desarrollo y apps móviles
 CORS_ALLOW_ALL_ORIGINS = True
 
-# TEMPLATES / WSGI
+# Aun así, dejo la lista recomendada para mayor seguridad futura
+CORS_ALLOWED_ORIGINS = [
+    "https://mi-vehiculo-al-dia.web.app",
+    "https://mi-vehiculo-al-dia.firebaseapp.com",
+    "http://localhost:8100",      # Ionic local
+    "http://localhost:5173",
+]
+
+# ======================================================
+# TEMPLATES
+# ======================================================
 ROOT_URLCONF = "backend.urls"
 
 TEMPLATES = [
@@ -107,14 +139,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "backend.wsgi.application"
 
-
-
-# BASE DE DATOS (LOCAL + PRODUCCIÓN)
-# →LOCAL: SQLite
-# PRODUCCIÓN: Railway usa DATABASE_URL automáticamente
-
+# ======================================================
+# BASE DE DATOS (LOCAL / PRODUCCIÓN)
+# ======================================================
 if DEBUG:
-    #MODO DESARROLLO → SQLite
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -122,7 +150,6 @@ if DEBUG:
         }
     }
 else:
-    #MODO PRODUCCIÓN → PostgreSQL (Railway)
     DATABASES = {
         "default": dj_database_url.parse(
             os.getenv("DATABASE_URL"),
@@ -131,11 +158,10 @@ else:
         )
     }
 
-
+# ======================================================
 # STATIC FILES
+# ======================================================
 STATIC_URL = "static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
-
-# DEFAULTS
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

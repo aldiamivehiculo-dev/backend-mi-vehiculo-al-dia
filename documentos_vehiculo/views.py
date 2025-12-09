@@ -6,12 +6,12 @@ from rest_framework.views import APIView
 from .models import DocumentoVehicular
 from .serializers import DocumentoVehicularSerializer
 import os, mimetypes
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from vehiculos.models import Vehiculo
 from rest_framework.response import Response
 from notificaciones.utils import crear_notificacion
 from rest_framework.permissions import AllowAny
-
+from rest_framework_simplejwt.tokens import AccessToken
 # Firebase
 import firebase_admin
 from firebase_admin import storage
@@ -36,9 +36,6 @@ def subir_pdf_firebase(file):
     blob.make_public()
 
     return blob.public_url
-
-
-
 
 # ============================================================
 # CREAR DOCUMENTO
@@ -169,8 +166,8 @@ class DocumentoDownloadView(APIView):
     def get(self, request, pk):
         token = request.query_params.get("token")
 
+        # Validación del token (QR)
         if token:
-            from rest_framework_simplejwt.tokens import AccessToken
             try:
                 AccessToken(token)
             except Exception:
@@ -179,26 +176,18 @@ class DocumentoDownloadView(APIView):
             if not request.user.is_authenticated:
                 return Response({"detail": "Authentication credentials were not provided."}, status=401)
 
+        # Buscar documento
         try:
             doc = DocumentoVehicular.objects.get(pk=pk)
         except DocumentoVehicular.DoesNotExist:
             raise Http404("Documento no encontrado")
 
-        if not doc.archivo:
+        # USAR archivo_url
+        if not doc.archivo_url:
             raise Http404("El documento no tiene archivo asociado")
 
-        filename = os.path.basename(doc.archivo.name)
-        content_type, _ = mimetypes.guess_type(filename)
-
-        return FileResponse(
-            doc.archivo.open('rb'),
-            as_attachment=True,
-            filename=filename,
-            content_type=content_type or 'application/octet-stream'
-        )
-
-
-
+        #REDIRIGIR DIRECTAMENTE A FIREBASE
+        return redirect(doc.archivo_url)
 # ============================================================
 # DOCUMENTOS ACTIVOS POR VEHÍCULO
 # ============================================================
