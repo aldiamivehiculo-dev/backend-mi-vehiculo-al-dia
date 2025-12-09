@@ -1,4 +1,3 @@
-from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -39,7 +38,7 @@ class GenerateShareQR(APIView):
         #OBTENER VEHICULO
         vehiculo = get_object_or_404(Vehiculo, id=vehiculo_id)
 
-        # verificar propietario
+        # veridicar que el usuario sea dueño
         if vehiculo.user != request.user:
             return Response({"error": "No tienes permiso para generar QR de este vehículo"},status=status.HTTP_403_FORBIDDEN)
         
@@ -76,10 +75,9 @@ class GenerateShareQR(APIView):
             receptor_rut=receptor_rut
         )
 
-        token = shared.token
         #construir url publica
-        share_url = request.build_absolute_uri(f"/api/accesos/info/{token}/")
-        frontend_url = f"{settings.FRONTEND_BASE_URL}/qr-publico/{token}"
+        share_url = request.build_absolute_uri(f"/api/accesos/info/{shared.token}/")
+        frontend_url = f"http://192.168.1.48:8100/qr-publico/{shared.token}"
 
         #generr qr 
         qr = qrcode.make(share_url)
@@ -305,4 +303,5 @@ class SharedAccessDetailView(APIView):
 
         ser = SharedAccessSerializer(shared)
         return Response(ser.data, status=200)
+
 
