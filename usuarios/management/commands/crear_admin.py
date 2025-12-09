@@ -13,11 +13,11 @@ class Command(BaseCommand):
             return
 
         Usuario.objects.create_superuser(
-            rut="11163969-8",
+            rut="11163969-3",
             email=email,
             nombre="Administrador",
             apellidos="Sistema",
-            telefono="912345678",
+            telefono="912345657",
             residencia="Santiago",
             password="Admin123."
         )
