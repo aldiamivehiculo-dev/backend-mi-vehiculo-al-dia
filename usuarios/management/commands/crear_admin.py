@@ -16,6 +16,9 @@ class Command(BaseCommand):
             rut="11163969-8",
             email=email,
             nombre="Administrador",
+            apellidos="Sistema",
+            telefono="912345678",
+            residencia="Santiago",
             password="Admin123."
         )
 
