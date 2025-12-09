@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from datetime import timedelta
 import qrcode
 import base64
@@ -303,5 +303,49 @@ class SharedAccessDetailView(APIView):
 
         ser = SharedAccessSerializer(shared)
         return Response(ser.data, status=200)
+
+class SharedAccessHTMLView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request, token):
+        shared = get_object_or_404(SharedAccess, token=token)
+
+        # Estado del QR
+        if shared.is_revoked:
+            estado = "revocado"
+        elif timezone.now() > shared.expires_at:
+            estado = "expirado"
+        else:
+            estado = "vigente"
+
+        vehiculo = shared.vehiculo
+
+        # Sacar documentos activos
+        docs = DocumentoVehicular.objects.filter(
+            vehiculo=vehiculo, activo=True
+        ).order_by("-fecha_subida")
+
+        documentos = {}
+        for t in ["pc", "so", "rt"]:
+            doc = docs.filter(tipo=t).first()
+            documentos[t] = {
+                "fecha_vencimiento": getattr(doc, "fecha_vencimiento", None),
+                "archivo": request.build_absolute_uri(doc.archivo.url) if doc else None
+            }
+
+        # Renderizar plantilla HTML
+        return render(request, "qr_publico.html", {
+            "vehiculo": vehiculo,
+            "estado": estado,
+            "documentos": documentos,
+            "shared": shared,
+            "prestamo": {
+                "receptor_nombre": shared.receptor_nombre,
+                "receptor_rut": shared.receptor_rut
+            } if shared.is_prestamo else None
+        })
+
+
 
 
