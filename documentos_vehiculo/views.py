@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from .models import DocumentoVehicular
 from .serializers import DocumentoVehicularSerializer
 import os, mimetypes
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from vehiculos.models import Vehiculo
 from rest_framework.response import Response
 from notificaciones.utils import crear_notificacion
@@ -163,14 +163,25 @@ class DocumentoDeleteView(generics.DestroyAPIView):
 # ============================================================
 # DESCARGAR DOCUMENTO (LEGACY, YA NO SE USA CON FIREBASE)
 # ============================================================
+import mimetypes
+import os
+from django.http import Http404
+from django.shortcuts import redirect
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.tokens import AccessToken
+from documentos.models import DocumentoVehicular
+
+
 class DocumentoDownloadView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, pk):
+        # 1️⃣ Validación de token para descarga por QR
         token = request.query_params.get("token")
 
         if token:
-            from rest_framework_simplejwt.tokens import AccessToken
             try:
                 AccessToken(token)
             except Exception:
@@ -179,24 +190,18 @@ class DocumentoDownloadView(APIView):
             if not request.user.is_authenticated:
                 return Response({"detail": "Authentication credentials were not provided."}, status=401)
 
+        # 2️⃣ Buscar documento
         try:
             doc = DocumentoVehicular.objects.get(pk=pk)
         except DocumentoVehicular.DoesNotExist:
             raise Http404("Documento no encontrado")
 
-        if not doc.archivo:
+        # 3️⃣ Verificar archivo URL
+        if not doc.archivo_url:
             raise Http404("El documento no tiene archivo asociado")
 
-        filename = os.path.basename(doc.archivo.name)
-        content_type, _ = mimetypes.guess_type(filename)
-
-        return FileResponse(
-            doc.archivo.open('rb'),
-            as_attachment=True,
-            filename=filename,
-            content_type=content_type or 'application/octet-stream'
-        )
-
+        # 4️⃣ Redirigir a Firebase Storage (el PDF real)
+        return redirect(doc.archivo_url)
 
 
 # ============================================================
