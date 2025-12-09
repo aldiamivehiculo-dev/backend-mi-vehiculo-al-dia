@@ -1,319 +1,149 @@
-from django.conf import settings
-from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
-from django.utils import timezone
-from django.shortcuts import get_object_or_404
+
+from pathlib import Path
 from datetime import timedelta
-import qrcode
-import base64
-from io import BytesIO
-from .models import SharedAccess, SharedAccessLog
-from .serializers import SharedAccessSerializer, SharedAccessLogSerializer
-from vehiculos.models import Vehiculo
-from documentos_vehiculo.models import DocumentoVehicular
-from django.contrib.auth import get_user_model
-from django.http import FileResponse, Http404
-from notificaciones.utils import crear_notificacion
+import os
+import firebase_admin
+from firebase_admin import credentials
+import json
+import dj_database_url
+from dotenv import load_dotenv
 
-# Create your views here.
+load_dotenv()
 
-class GenerateShareQR(APIView):
-    permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-        vehiculo_id = request.data.get("vehiculo_id")
-        hours = request.data.get("hours", 1)
-        is_prestamo = str(request.data.get("is_prestamo", False)).lower() == "true"
-        receptor_nombre = request.data.get("receptor_nombre")
-        receptor_rut = request.data.get("receptor_rut")
 
-        # validar horas
-        try:
-            hours = int(hours)
-        except:
-            return Response({"error": "hours debe ser numérico"}, status=status.HTTP_400_BAD_REQUEST)
+# CONFIG GENERAL
+SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
+DEBUG = os.environ.get("DEBUG", "True") == "True"
 
-        # obtener vehículo
-        vehiculo = get_object_or_404(Vehiculo, id=vehiculo_id)
+ALLOWED_HOSTS = [
+    "web-production-057b0.up.railway.app",
+    "localhost",
+    "127.0.0.1",
+]
 
-        # verificar propietario
-        if vehiculo.user != request.user:
-            return Response(
-                {"error": "No tienes permiso para generar QR de este vehículo"},
-                status=status.HTTP_403_FORBIDDEN
-            )
+CSRF_TRUSTED_ORIGINS = [
+    "https://web-production-057b0.up.railway.app",
+]
 
-        # validación préstamo
-        if is_prestamo:
-            if not receptor_nombre or not receptor_rut:
-                return Response(
-                    {"error": "Para préstamos, receptor_nombre y receptor_rut son obligatorios"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+# FIREBASE STORAGE
+# FIREBASE STORAGE (PRODUCCIÓN + DESARROLLO)
+FIREBASE_CREDENTIALS_JSON = os.environ.get("FIREBASE_CREDENTIALS_JSON")
 
-            User = get_user_model()
+if FIREBASE_CREDENTIALS_JSON:
+    # CREDENCIALES DESDE VARIABLE DE ENTORNO (RAILWAY)
+    cred_dict = json.loads(FIREBASE_CREDENTIALS_JSON)
 
-            try:
-                U_dest = User.objects.get(rut=receptor_rut)
-            except User.DoesNotExist:
-                return Response(
-                    {"error": "El RUT del receptor no corresponde a un usuario registrado."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+    if not firebase_admin._apps:
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred, {
+            "storageBucket": "mi-vehiculo-al-dia.firebasestorage.app"
+        })
+else:
+    print("No se cargaron credenciales Firebase (FIREBASE_CREDENTIALS_JSON no existe)")
 
-            if not receptor_nombre:
-                receptor_nombre = getattr(U_dest, "nombre", None)
-        else:
-            receptor_nombre = None
-            receptor_rut = None
 
-        # calcular expiración
-        expires_at = timezone.now() + timedelta(hours=hours)
+# APPS
+INSTALLED_APPS = [
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
 
-        # crear registro
-        shared = SharedAccess.objects.create(
-            user=request.user,
-            vehiculo=vehiculo,
-            expires_at=expires_at,
-            is_prestamo=is_prestamo,
-            receptor_nombre=receptor_nombre,
-            receptor_rut=receptor_rut
-        )
+    "rest_framework",
+    "corsheaders",
 
-        token = shared.token
+    "usuarios",
+    "vehiculos",
+    "documentos_vehiculo",
+    "accesos",
+    "fiscalizador",
+    "mantenimiento",
+    "notificaciones",
+]
 
-        # URL backend (API)
-        share_url = request.build_absolute_uri(f"/api/accesos/info/{token}/")
+AUTH_USER_MODEL = "usuarios.Usuario"
 
-        # URL frontend (Firebase Hosting)
-        frontend_url = f"{settings.FRONTEND_BASE_URL}/qr-publico/{token}"
+# JWT
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    )
+}
 
-        # 🔥 generar QR apuntando al FRONTEND (NO al backend)
-        qr = qrcode.make(frontend_url)
-        buf = BytesIO()
-        qr.save(buf, format="PNG")
-        qr_base64 = base64.b64encode(buf.getvalue()).decode()
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=365),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+}
 
-        shared.qr_base64 = qr_base64
-        shared.save()
+# MIDDLEWARE
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
 
-        # notificación
-        titulo = "QR generado"
-        mensaje = (
-            f"Se ha generado un código QR para el vehículo {vehiculo.patente}. "
-            f"Duración: {hours} hora(s)."
-        )
 
-        meta = {
-            "qr_id": str(shared.id),
-            "vehiculo_id": vehiculo.id,
-            "vehiculo_patente": vehiculo.patente,
-            "expires_at": str(shared.expires_at),
-            "token": str(token),
-            "is_prestamo": is_prestamo,
-            "receptor_nombre": receptor_nombre,
-            "receptor_rut": receptor_rut,
+CORS_ALLOW_ALL_ORIGINS = True
+
+# TEMPLATES / WSGI
+ROOT_URLCONF = "backend.urls"
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = "backend.wsgi.application"
+
+
+
+# BASE DE DATOS (LOCAL + PRODUCCIÓN)
+# →LOCAL: SQLite
+# PRODUCCIÓN: Railway usa DATABASE_URL automáticamente
+
+if DEBUG:
+    #MODO DESARROLLO → SQLite
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
         }
-
-        crear_notificacion(
-            user=request.user,
-            titulo=titulo,
-            mensaje=mensaje,
-            tipo="qr",
-            meta=meta,
-            send_email=False
+    }
+else:
+    #MODO PRODUCCIÓN → PostgreSQL (Railway)
+    DATABASES = {
+        "default": dj_database_url.parse(
+            os.getenv("DATABASE_URL"),
+            conn_max_age=600,
+            ssl_require=False
         )
-
-        return Response({
-            "id": str(shared.id),
-            "token": token,
-            "expires_at": shared.expires_at,
-            "share_url": share_url,       # API
-            "frontend_url": frontend_url, # EL LINK CORRECTO PARA COMPARTIR
-            "qr_base64": qr_base64,
-            "is_prestamo": shared.is_prestamo,
-            "receptor_nombre": shared.receptor_nombre,
-            "receptor_rut": shared.receptor_rut
-        }, status=status.HTTP_201_CREATED)
-    
-class SharedAccessInfoView(APIView):
-    #endpoint publico que retorna la info ligada a un token de acceso
-
-    authentication_classes = [] #publico
-    permission_classes = [] #sin auth
-
-    def get(self, request, token):
-        #buscar token
-        shared = get_object_or_404(SharedAccess, token=token)
-
-        #validar expiracion
-        if shared.is_revoked:
-            return Response({"valid": False, "message": "Acceso revocado"}, status=status.HTTP_403_FORBIDDEN)
-        
-        if timezone.now()> shared.expires_at:
-            return Response({"valid": False, "message": "Aceceso expirado"}, status=status.HTTP_403_FORBIDDEN)
-        
-        #obtener vehiculo asociadp
-        vehiculo = shared.vehiculo
-        
-        #buscar documentos activos del vehiculo
-        docs = DocumentoVehicular.objects.filter(
-            vehiculo=vehiculo,
-            activo=True
-        ).order_by("-fecha_subida")
-
-        documentos = {}
-        for t in ["pc", "so", "rt"]:
-            doc = docs.filter(tipo=t).first()
-            if doc:
-
-                if request.user.is_authenticated:
-                    archivo = request.build_absolute_uri(doc.archivo.url)
-                else:
-                    archivo = None
-                
-                documentos[t] = {
-                    "id": doc.id,
-                    "tipo": t,
-                    "fecha_vencimiento":doc.fecha_vencimiento,
-                    "archivo": archivo
-                }
-            else:
-                documentos[t] = None
-        
-        #registrar acceso al log
-        SharedAccessLog.objects.create(
-            shared=shared,
-            usuario=request.user if request.user.is_authenticated else None,
-            ip=request.META.get('REMOTE_ADDR'),
-            user_agent=request.META.get('HTTP_USER_AGENT'),
-            is_prestamo=shared.is_prestamo,
-        )
-
-        #RESPUESTA
-        data = {
-            "valid":True,
-            "vehiculo": {
-                "patente": vehiculo.patente,
-                "marca": vehiculo.marca,
-                "modelo": vehiculo.modelo,
-                "color": vehiculo.color,
-            },
-            "documentos" : documentos
-        }
-
-        if shared.is_prestamo:
-            data["prestamo"] ={
-                "receptor_nombre": shared.receptor_nombre,
-                "receptor_rut": shared.receptor_rut
-            }
-        return Response(data)
-
-class RevokeSharedAccessView(APIView):
-    """permite al usuario revocar el acceso al qr compartido"""
-
-    permission_classes =[IsAuthenticated]
-
-    def patch(self, request, uuid):
-        shared = get_object_or_404(SharedAccess, id=uuid)
-
-        #validar que el solicitante sea el creador
-        if shared.user != request.user:
-            return Response({"detail": "No autorizado para revocar este acceso."}, status=status.HTTP_403_FORBIDDEN)
-        
-        #YA ESTA REVOCADO
-        if shared.is_revoked:
-            return Response({"detail": "Este acceso ya está revocado."}, status=status.HTTP_200_OK)
-        
-        try: #marcar como revocado
-            shared.is_revoked = True
-            shared.save()
-        except Exception as e:
-            #fallo de acrualizacion en la baese de datos
-            return Response({"detail": "Error al revocar acceso.", "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        return Response({"detail": "Acceso revocado exitosamente."}, status=status.HTTP_200_OK)
-
-class SharedAccessListView(APIView):
-     """lista de todos los acceso compartidos"""
-     permission_classes = [IsAuthenticated]
-     
-     def get(self, request):
-        shared = SharedAccess.objects.filter(user=request.user).order_by("-created_at")
-        serializer = SharedAccessSerializer(shared, many=True)
-        return Response(serializer.data)
-
-class SharedAccessLogsView(APIView):
-    """lista los accesos realizados aun tokenN"""
-
-    permission_classes =[IsAuthenticated]
-    
-    def get(self, request, uuid):
-        shared = get_object_or_404(SharedAccess, id=uuid)
-
-        #solo el dueño puede ver el log
-        if shared.user != request.user:
-            return Response({"detail": "No autorizado"}, status=status.HTTP_403_FORBIDDEN)
-        
-        logs = shared.access_logs.all()
-        ser = SharedAccessLogSerializer(logs, many=True)
-        return Response(ser.data)
-
-class DownloadSharedDocumentView(APIView):
-    """
-    Descarga/visualiza un PDF a través de un token compartido.
-    Requisitos:
-    - token válido
-    - no revocado
-    - no expirado
-    - doc pertenece al mismo vehículo del token
-    """
-    authentication_classes = []
-    permission_classes = []
-
-    def get(self, request, token, doc_id):
-        shared = get_object_or_404(SharedAccess, token=token)
-
-        if shared.is_revoked:
-            return Response({"detail": "Acceso revocado"}, status=status.HTTP_403_FORBIDDEN)
-        if timezone.now() > shared.expires_at:
-            return Response({"detail": "Acceso expirado"}, status=status.HTTP_403_FORBIDDEN)
-
-        # documento debe ser ACTIVO y del mismo vehículo
-        doc = get_object_or_404(
-            DocumentoVehicular,
-            id=doc_id,
-            vehiculo=shared.vehiculo,
-            activo=True,
-        )
-
-        if not doc.archivo:
-            raise Http404("Documento sin archivo")
-
-        # Log de acceso 
-        SharedAccessLog.objects.create(
-            shared=shared,
-            usuario=request.user if request.user.is_authenticated else None,
-            ip=request.META.get('REMOTE_ADDR'),
-            user_agent=request.META.get('HTTP_USER_AGENT'),
-            is_prestamo=shared.is_prestamo, 
-        )
-
-        return FileResponse(doc.archivo.open('rb'), content_type='application/pdf')
-
-class SharedAccessDetailView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, uuid):
-        shared = get_object_or_404(SharedAccess, id=uuid)
-
-        if shared.user != request.user:
-            return Response({"detail": "No autorizado"}, status=403)
-
-        ser = SharedAccessSerializer(shared)
-        return Response(ser.data, status=200)
+    }
 
 
+# STATIC FILES
+STATIC_URL = "static/"
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+
+
+# DEFAULTS
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
