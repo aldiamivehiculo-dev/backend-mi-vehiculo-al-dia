@@ -76,8 +76,8 @@ class GenerateShareQR(APIView):
         )
 
         #construir url publica
-        share_url = request.build_absolute_uri(f"/api/accesos/info/{shared.token}/")
-        frontend_url = f"http://192.168.1.48:8100/qr-publico/{shared.token}"
+        share_url = request.build_absolute_uri(f"/accesos/qr-view/{shared.token}/")
+        frontend_url = share_url
 
         #generr qr 
         qr = qrcode.make(share_url)
