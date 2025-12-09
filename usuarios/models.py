@@ -3,46 +3,27 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 
 # Manager personalizado de Usuario
 class UsuarioManager(BaseUserManager):
-    """
-    Manager para crear usuarios y superusuarios con los campos personalizados.
-    """
 
-    def create_user(self, email, rut, nombre, password=None, rol='usuario', **extra_fields):
-        """
-        Crea y guarda un usuario normal en la base de datos.
-        Parámetros:
-            rut (str): Identificador único del usuario (RUT chileno).
-            email (str): Correo electrónico del usuario.
-            nombre (str): Nombre completo del usuario.
-            password (str, opcional): Contraseña del usuario.
-            rol (str, opcional): Rol del usuario ('usuario' por defecto).
-            extra_fields (dict): Otros campos adicionales.
-        Retorna:
-            Usuario: Instancia del usuario creado.
-        """
+    def create_user(self, rut, email, nombre, password=None, rol='usuario', **extra_fields):
         if not rut:
             raise ValueError("El usuario debe tener RUT")
         if not email:
             raise ValueError("El usuario debe tener un correo electrónico")
-        
+
         email = self.normalize_email(email)
-        usuario = self.model(rut=rut, email=email, nombre=nombre, rol=rol, **extra_fields)
-        usuario.set_password(password)  # encripta la contraseña
+
+        usuario = self.model(
+            rut=rut,
+            email=email,
+            nombre=nombre,
+            rol=rol,
+            **extra_fields
+        )
+        usuario.set_password(password)
         usuario.save(using=self._db)
         return usuario
 
     def create_superuser(self, rut, email, nombre, password=None, **extra_fields):
-        """
-        Crea y guarda un superusuario en la base de datos.
-        Parámetros:
-            rut (str): RUT del superusuario.
-            email (str): Correo electrónico del superusuario.
-            nombre (str): Nombre completo del superusuario.
-            password (str): Contraseña.
-            extra_fields (dict): Otros campos adicionales.
-        Retorna:
-            Usuario: Instancia del superusuario creado.
-        """
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('rol', 'admin')
@@ -52,7 +33,14 @@ class UsuarioManager(BaseUserManager):
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('El superusuario debe tener is_superuser=True.')
 
-        return self.create_user(rut, email, nombre, password, **extra_fields)
+        return self.create_user(
+            rut=rut,
+            email=email,
+            nombre=nombre,
+            password=password,
+            **extra_fields
+        )
+
 #Modelo personalizado de Usuario
 class Usuario(AbstractBaseUser, PermissionsMixin):
     """
