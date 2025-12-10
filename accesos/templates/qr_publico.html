@@ -1,4 +1,4 @@
-!<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -93,4 +93,30 @@
 
         <h3>Documentos del Vehículo</h3>
 
-        {% for tipo,
+        {% for tipo, doc in documentos.items %}
+            <div class="doc-card">
+                <div class="doc-type">
+                    {% if tipo == "pc" %} Permiso de Circulación
+                    {% elif tipo == "rt" %} Revisión Técnica
+                    {% elif tipo == "so" %} Seguro Obligatorio
+                    {% else %} Documento {{ tipo }}
+                    {% endif %}
+                </div>
+
+                {% if doc %}
+                    <p>Vence: {{ doc.fecha_vencimiento }}</p>
+
+                    {% if doc.archivo %}
+                    <a href="{{ doc.archivo }}" target="_blank">Ver Documento</a>
+                    {% else %}
+                    <p>No disponible</p>
+                    {% endif %}
+
+                {% else %}
+                    <p>No registrado</p>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
