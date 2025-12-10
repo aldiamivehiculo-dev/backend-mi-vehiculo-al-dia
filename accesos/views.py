@@ -328,13 +328,15 @@ class SharedAccessHTMLView(APIView):
         documentos = {}
         for t in ["pc", "so", "rt"]:
             doc = docs.filter(tipo=t).first()
+
             documentos[t] = {
                 "fecha_vencimiento": getattr(doc, "fecha_vencimiento", None),
-                "archivo": request.build_absolute_uri(doc.archivo.url) if doc else None
+                "archivo": request.build_absolute_uri(doc.archivo.url)
+                    if (doc and doc.archivo) else None
             }
 
         # Renderizar plantilla HTML
-        return render(request, "qr_publico.html", {
+        return render(request, "accesos/qr_publico.html", {
             "vehiculo": vehiculo,
             "estado": estado,
             "documentos": documentos,
@@ -344,7 +346,5 @@ class SharedAccessHTMLView(APIView):
                 "receptor_rut": shared.receptor_rut
             } if shared.is_prestamo else None
         })
-
-
 
 
