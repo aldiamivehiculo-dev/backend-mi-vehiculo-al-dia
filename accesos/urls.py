@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import GenerateShareQR, SharedAccessInfoView, RevokeSharedAccessView, SharedAccessListView, SharedAccessLogsView, DownloadSharedDocumentView, SharedAccessDetailView
+from .views import GenerateShareQR, SharedAccessInfoView, RevokeSharedAccessView, SharedAccessListView, SharedAccessLogsView, DownloadSharedDocumentView, SharedAccessDetailView, SharedAccessHTMLView
 urlpatterns = [
     path("qr/", GenerateShareQR.as_view(), name="share-generate"),
     path("info/<str:token>/", SharedAccessInfoView.as_view(), name="share-info"),
@@ -8,6 +8,8 @@ urlpatterns = [
     path("logs/<uuid:uuid>/", SharedAccessLogsView.as_view()),
     path("file/<str:token>/<int:doc_id>/", DownloadSharedDocumentView.as_view(), name="share-file"),
     path("detalle/<uuid:uuid>/", SharedAccessDetailView.as_view(), name="acceso-detalle"),
+    path("qr-view/<str:token>/", SharedAccessHTMLView.as_view(), name="qr-public"),
+
 
 
 ]
