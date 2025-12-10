@@ -1,4 +1,4 @@
-!<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -10,30 +10,37 @@
             margin: 0;
             padding: 0;
             font-family: "Arial", sans-serif;
-            background: linear-gradient(135deg, #0b1425, #1e2a47);
+            background: radial-gradient(circle at top, #13243f, #0a1424 70%);
             color: white;
         }
 
         .container {
-            max-width: 420px;
-            margin: 25px auto;
-            padding: 20px;
-            background: rgba(255,255,255,0.08);
-            backdrop-filter: blur(12px);
-            border-radius: 15px;
+            max-width: 430px;
+            margin: 30px auto;
+            padding: 25px;
+            background: rgba(255,255,255,0.10);
+            backdrop-filter: blur(14px);
+            border-radius: 18px;
             text-align: center;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.40);
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         h2 {
             margin-bottom: 5px;
-            font-size: 1.6rem;
+            font-size: 1.9rem;
+            letter-spacing: 1px;
         }
 
         .estado {
-            padding: 8px 14px;
+            padding: 8px 18px;
             border-radius: 20px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
             display: inline-block;
             font-weight: bold;
             text-transform: uppercase;
@@ -45,33 +52,57 @@
         .revocado { background: #e74c3c; }
 
         .dato {
-            margin: 10px 0;
-            font-size: 1rem;
+            margin: 8px 0;
+            font-size: 1.1rem;
+        }
+
+        h3 {
+            margin-top: 22px;
+            font-size: 1.2rem;
+            letter-spacing: 0.5px;
         }
 
         .doc-card {
             background: rgba(255,255,255,0.12);
-            padding: 12px;
-            border-radius: 12px;
-            margin: 12px 0;
+            padding: 14px;
+            border-radius: 14px;
+            margin: 14px 0;
             text-align: left;
+            border-left: 4px solid #4da3ff;
+            animation: fadeIn 0.5s ease-out;
         }
 
         .doc-type {
             font-weight: bold;
-            font-size: 1rem;
+            font-size: 1.1rem;
+            margin-bottom: 6px;
+        }
+
+        .doc-info {
+            font-size: 0.95rem;
+            margin-bottom: 6px;
         }
 
         a {
             display: inline-block;
             margin-top: 8px;
-            color: #4da3ff;
+            padding: 6px 12px;
+            background: #4da3ff;
+            border-radius: 6px;
+            color: white;
             text-decoration: none;
             font-weight: bold;
+            transition: 0.2s;
         }
 
         a:hover {
-            opacity: 0.8;
+            background: #73b9ff;
+        }
+
+        .no-doc {
+            color: #cccccc;
+            font-style: italic;
+            margin-top: 5px;
         }
     </style>
 </head>
@@ -93,4 +124,31 @@
 
         <h3>Documentos del Vehículo</h3>
 
-        {% for tipo,
+        {% for tipo, data in documentos.items %}
+            <div class="doc-card">
+                <div class="doc-type">
+                    {% if tipo == "pc" %} Permiso de Circulación
+                    {% elif tipo == "so" %} Seguro Obligatorio
+                    {% elif tipo == "rt" %} Revisión Técnica
+                    {% else %} {{ tipo|upper }}
+                    {% endif %}
+                </div>
+
+                {% if data %}
+                    <div class="doc-info">
+                        <strong>Vence:</strong> {{ data.fecha_vencimiento }}
+                    </div>
+
+                    {% if data.archivo %}
+                        <a href="{{ data.archivo }}" target="_blank">Ver Documento</a>
+                    {% else %}
+                        <div class="no-doc">Archivo no disponible</div>
+                    {% endif %}
+                {% else %}
+                    <div class="no-doc">No hay documento activo</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
