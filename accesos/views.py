@@ -76,7 +76,7 @@ class GenerateShareQR(APIView):
         )
 
         #construir url publica
-        public_url = request.build_absolute_uri(f"/accesos/qr-view/{shared.token}/")
+        public_url = request.build_absolute_uri(f"/api/accesos/qr-view/{shared.token}/")
 
 
         #generr qr 
