@@ -76,11 +76,11 @@ class GenerateShareQR(APIView):
         )
 
         #construir url publica
-        share_url = request.build_absolute_uri(f"/accesos/qr-view/{shared.token}/")
-        frontend_url = share_url
+        public_url = request.build_absolute_uri(f"/accesos/qr-view/{shared.token}/")
+
 
         #generr qr 
-        qr = qrcode.make(share_url)
+        qr = qrcode.make(public_url)
         buf = BytesIO()
         qr.save(buf, format="PNG")
         qr_base64 = base64.b64encode(buf.getvalue()).decode()
